@@ -1,50 +1,25 @@
+const express = require('express');
+const cors = require('cors');
+const YAML = require('yamljs');
+const path = require('path');
 
-const express = require("express");
-const fs = require("fs");
-const cors = require("cors");
-const yaml = require("yamljs");
 const app = express();
-const PORT = 3000;
-
 app.use(cors());
-app.use(express.json());
 
-// Load Swagger YAML once and parse
-const swaggerFile = "./swagger.yaml";
-let swaggerData = {};
+// Adjust this if your YAML filename is different or in a subfolder
+const swaggerFilePath = path.join(__dirname, 'api.yaml');
 
-try {
-  const fileContents = fs.readFileSync(swaggerFile, "utf8");
-  swaggerData = yaml.load(fileContents);
-} catch (e) {
-  console.error("Error loading swagger file:", e);
-}
-
-app.post("/query", (req, res) => {
-  const question = req.body.question.toLowerCase();
-  const paths = swaggerData.paths;
-  let result = [];
-
-  for (let path in paths) {
-    for (let method in paths[path]) {
-      const operation = paths[path][method];
-      if (
-        (operation.summary && operation.summary.toLowerCase().includes(question)) ||
-        (operation.description && operation.description.toLowerCase().includes(question))
-      ) {
-        result.push({
-          path,
-          method,
-          summary: operation.summary || "",
-          description: operation.description || "",
-        });
-      }
-    }
+app.get('/swagger-info', (req, res) => {
+  try {
+    const swaggerDoc = YAML.load(swaggerFilePath);
+    res.json(swaggerDoc);
+  } catch (error) {
+    console.error('Error loading Swagger YAML:', error.message);
+    res.status(500).json({ error: 'Failed to load Swagger file' });
   }
-
-  res.json({ matches: result });
 });
 
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`✅ Server is running on http://localhost:${PORT}`);
 });
