@@ -2,7 +2,7 @@
 const express = require("express");
 const fs = require("fs");
 const cors = require("cors");
-const yaml = require("js-yaml");
+const yaml = require("yamljs");
 const app = express();
 const PORT = 3000;
 
