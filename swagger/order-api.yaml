@@ -2,18 +2,96 @@ openapi: 3.0.0
 info:
   title: Order Service API
   version: 1.0.0
+  description: API to manage customer orders in the system.
+
 paths:
   /orders:
     get:
       summary: Get all orders
+      operationId: getAllOrders
       description: Retrieves a list of all customer orders.
+      responses:
+        '200':
+          description: A list of orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
     post:
       summary: Create order
+      operationId: createOrder
       description: Places a new order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+      responses:
+        '201':
+          description: Order created successfully
+        '400':
+          description: Invalid input
+
   /orders/{id}:
     get:
       summary: Get order by ID
+      operationId: getOrderById
       description: Fetches an order using its unique identifier.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Order not found
     delete:
       summary: Cancel order
+      operationId: cancelOrder
       description: Cancels an order by ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Order cancelled successfully
+        '404':
+          description: Order not found
+
+components:
+  schemas:
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "12345"
+        customerName:
+          type: string
+          example: "John Doe"
+        items:
+          type: array
+          items:
+            type: string
+          example: ["item1", "item2"]
+        totalAmount:
+          type: number
+          format: float
+          example: 99.99
+        status:
+          type: string
+          enum: [Pending, Confirmed, Shipped, Delivered, Cancelled]
+          example: "Pending"
