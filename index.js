@@ -25,19 +25,30 @@ fs.readdirSync(swaggerDir).forEach(file => {
   }
 });
 
-// Utility function to search one Swagger doc
+// Utility function to extract keywords from a question
+function extractKeywords(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .split(/\s+/)
+    .filter(word => word.length > 2); // Ignore short/common words
+}
+
+// Improved search function with keyword matching
 function searchSwagger(question, swagger, source) {
-  const lowerQ = question.toLowerCase();
+  const keywords = extractKeywords(question);
   const matches = [];
 
-  for (const [path, methods] of Object.entries(swagger.paths)) {
+  for (const [pathKey, methods] of Object.entries(swagger.paths)) {
     for (const [method, details] of Object.entries(methods)) {
-      const combinedText = `${method} ${path} ${details.summary || ''} ${details.description || ''}`.toLowerCase();
-      if (combinedText.includes(lowerQ)) {
+      const combinedText = `${method} ${pathKey} ${details.summary || ''} ${details.description || ''}`.toLowerCase();
+
+      const isMatch = keywords.every(kw => combinedText.includes(kw));
+      if (isMatch) {
         matches.push({
           source,
           method: method.toUpperCase(),
-          path,
+          path: pathKey,
           summary: details.summary,
           description: details.description,
         });
@@ -48,12 +59,12 @@ function searchSwagger(question, swagger, source) {
   return matches;
 }
 
-// API to get all Swagger sources (optional)
+// Endpoint to list available Swagger files
 app.get('/swagger-sources', (req, res) => {
   res.json(Object.keys(allSwaggerDocs));
 });
 
-// Chat-style question answering over multiple Swagger docs
+// Main chatbot endpoint
 app.post('/api-doc-bot', (req, res) => {
   const { question } = req.body;
   if (!question) return res.status(400).json({ error: 'Missing question' });
@@ -62,6 +73,22 @@ app.post('/api-doc-bot', (req, res) => {
     let totalMatches = [];
 
     for (const [source, swaggerDoc] of Object.entries(allSwaggerDocs)) {
+      // Check for version question
+      if (
+        question.toLowerCase().includes('version') &&
+        swaggerDoc.info &&
+        swaggerDoc.info.version
+      ) {
+        totalMatches.push({
+          source,
+          method: 'INFO',
+          path: '',
+          summary: 'API Version',
+          description: `Version: ${swaggerDoc.info.version}`,
+        });
+        continue;
+      }
+
       const matches = searchSwagger(question, swaggerDoc, source);
       totalMatches = totalMatches.concat(matches);
     }
@@ -72,7 +99,7 @@ app.post('/api-doc-bot', (req, res) => {
       });
     }
 
-    let response = `🔍 Found ${totalMatches.length} matching endpoint(s):\n\n`;
+    let response = `🔍 Found ${totalMatches.length} matching result(s):\n\n`;
     totalMatches.forEach((m, i) => {
       response += `${i + 1}. 📘 **[${m.source}]** [${m.method}] \`${m.path}\`\n   - ${m.summary}\n   - ${m.description}\n\n`;
     });
