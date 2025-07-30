@@ -1,0 +1,19 @@
+openapi: 3.0.0
+info:
+  title: Order Service API
+  version: 1.0.0
+paths:
+  /orders:
+    get:
+      summary: Get all orders
+      description: Retrieves a list of all customer orders.
+    post:
+      summary: Create order
+      description: Places a new order.
+  /orders/{id}:
+    get:
+      summary: Get order by ID
+      description: Fetches an order using its unique identifier.
+    delete:
+      summary: Cancel order
+      description: Cancels an order by ID.
