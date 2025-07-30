@@ -64,13 +64,17 @@ const fuse = new Fuse(apiEntries, {
 // === Static keyword-based responses ===
 const staticAnswers = [
   {
-    keywords: ["what are plans", "api plans", "subscription plans"],
+    keywords: [
+      "what are plans", "api plans", "subscription plans", "explain plans", "plan options"
+    ],
     answer: `A plan is a collection of API resources or subsets of resources from one or more API. A plan can contain a mixture of HTTP, GET, PUT, POST and DELETE actions from different APIs or it can contain all the actions from various APIs. A plan can have a common rate limit for all the resources or each resource can have a different rate limit. Rate limits specify how many calls an app is allowed to make during a specified time interval.
 
 Use the Developer Portal to browse the different plans that are available and select a plan that is more suitable for your requirements. Some plans are restricted and require you to request access before you can use them. When you submit your request, the organisation is notified, the API administrator assesses your request and they might contact you for more details. Other plans are available to use straight away.`
   },
   {
-    keywords: ["register app", "how to register", "add app"],
+    keywords: [
+      "register app", "how to register", "add app", "create application", "register an application", "app registration", "new app", "how do i add an app"
+    ],
     answer: `When you add an app you are provided with a client ID and client secret for the app. You must supply the client ID when you call an API that requires you to identify your app by using a client ID, or a client ID and client secret.
 
 To register an app click on Apps in the main menu and then click on the 'Register an application' link. Once you have provided an app name, description, etc you will be shown your app client ID and client secret.
@@ -78,7 +82,9 @@ To register an app click on Apps in the main menu and then click on the 'Registe
 Make a note of your client secret because it is only displayed once. You must supply the client secret when you call an API that requires you to identify your app by using a Client ID and Client secret.`
   },
   {
-    keywords: ["api usage", "see usage", "request count"],
+    keywords: [
+      "api usage", "see usage", "request count", "usage stats", "api calls", "check usage", "track usage"
+    ],
     answer: `The number of requests, for different APIs, that your application has made are shown on your application page.
 
 Click 'Apps' in the main menu and then click on your application. Under 'Subscribed Plans' you will see all plans your application is subscribed to.
@@ -86,7 +92,9 @@ Click 'Apps' in the main menu and then click on your application. Under 'Subscri
 For each API contained in that plan you can see the usage compared to the rate limit of the plan.`
   },
   {
-    keywords: ["test api", "try api", "try it out"],
+    keywords: [
+      "test api", "try api", "try it out", "test endpoint", "api testing", "how to test api", "try button", "test an endpoint"
+    ],
     answer: `It is possible to test an API from the Developer Portal.
 
 When looking at the details of an API, you will see a table of the operations contained in the API. This will show what method they use (GET, POST, PUT, DELETE, PATCH, HEAD or OPTIONS) and what path the resource uses.
@@ -98,12 +106,15 @@ There is also a ‘Try’ button which enables you to try the resource out direc
 If the API requires a Client ID or a Client Secret for identification, you can specify these at the top of the ‘Try’ section.`
   },
   {
-    keywords: ["reset secret", "reset client secret", "forgot client secret"],
+    keywords: [
+      "reset secret", "reset client secret", "forgot client secret", "change secret", "regenerate secret", "reset app secret", "secret key reset"
+    ],
     answer: `It is possible to reset your Client Secret if you forget it.
 
 To do this click on ‘Apps’ in the main menu, click on the app in question, navigate to the ‘Client Secret’ section and select ‘Reset’.`
   }
 ];
+
 
 // === Search API ===
 app.post("/search", (req, res) => {
