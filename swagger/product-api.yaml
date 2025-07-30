@@ -1,0 +1,22 @@
+openapi: 3.0.0
+info:
+  title: Product Catalog API
+  version: 1.0.0
+paths:
+  /products:
+    get:
+      summary: Get product list
+      description: Returns all available products.
+    post:
+      summary: Add new product
+      description: Adds a new product to the catalog.
+  /products/{id}:
+    get:
+      summary: Get product by ID
+      description: Returns details of a product by ID.
+    put:
+      summary: Update product
+      description: Updates product details.
+    delete:
+      summary: Delete product
+      description: Removes a product by ID.
