@@ -2,15 +2,14 @@ const express = require('express');
 const cors = require('cors');
 const YAML = require('yamljs');
 const path = require('path');
-const bodyParser = require('body-parser');
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
 const swaggerFilePath = path.join(__dirname, 'api.yaml');
 
-// Endpoint to send entire Swagger JSON
+// Endpoint to load Swagger YAML
 app.get('/swagger-info', (req, res) => {
   try {
     const swaggerDoc = YAML.load(swaggerFilePath);
@@ -21,19 +20,23 @@ app.get('/swagger-info', (req, res) => {
   }
 });
 
-// Dummy /ask endpoint to simulate Q&A (replace with real AI logic later)
-app.post('/ask', (req, res) => {
-  const question = req.body.question;
-  const swaggerDoc = YAML.load(swaggerFilePath);
+// POST endpoint to handle questions about the API
+app.post('/api-doc-bot', (req, res) => {
+  const { question } = req.body;
+  if (!question) {
+    return res.status(400).json({ error: 'Missing question' });
+  }
 
-  // Simple keyword search as placeholder logic
-  const paths = Object.keys(swaggerDoc.paths || {});
-  const matches = paths.filter(p => p.toLowerCase().includes(question.toLowerCase()));
+  try {
+    const swaggerDoc = YAML.load(swaggerFilePath);
+    
+    // Dummy logic for now – you should replace this with actual AI logic
+    const dummyAnswer = `You asked: "${question}". (This is a placeholder answer using Swagger doc title: "${swaggerDoc.info.title}")`;
 
-  if (matches.length > 0) {
-    res.json({ answer: `This API might help you: ${matches[0]}` });
-  } else {
-    res.json({ answer: `Sorry, no relevant API found for: "${question}"` });
+    res.json({ answer: dummyAnswer });
+  } catch (error) {
+    console.error('Error in /api-doc-bot:', error.message);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
