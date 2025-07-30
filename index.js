@@ -9,18 +9,43 @@ app.use(express.json());
 
 const swaggerFilePath = path.join(__dirname, 'api.yaml');
 
-// Endpoint to load Swagger YAML
-app.get('/swagger-info', (req, res) => {
-  try {
-    const swaggerDoc = YAML.load(swaggerFilePath);
-    res.json(swaggerDoc);
-  } catch (error) {
-    console.error('Error loading Swagger YAML:', error.message);
-    res.status(500).json({ error: 'Failed to load Swagger file' });
-  }
-});
+// Load YAML once at startup
+let swaggerDoc = {};
+try {
+  swaggerDoc = YAML.load(swaggerFilePath);
+  console.log('✅ Swagger YAML loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load Swagger YAML:', error.message);
+}
 
-// POST endpoint to handle questions about the API
+// Simple helper to search API paths
+function searchSwagger(question) {
+  const lowerQ = question.toLowerCase();
+  const matches = [];
+
+  if (!swaggerDoc.paths) return matches;
+
+  Object.entries(swaggerDoc.paths).forEach(([path, methods]) => {
+    Object.entries(methods).forEach(([method, details]) => {
+      const summary = details.summary || '';
+      const description = details.description || '';
+      const combined = `${method.toUpperCase()} ${path} ${summary} ${description}`.toLowerCase();
+
+      if (combined.includes(lowerQ)) {
+        matches.push({
+          method: method.toUpperCase(),
+          path,
+          summary: details.summary || '',
+          description: details.description || ''
+        });
+      }
+    });
+  });
+
+  return matches;
+}
+
+// Endpoint for API Q&A
 app.post('/api-doc-bot', (req, res) => {
   const { question } = req.body;
   if (!question) {
@@ -28,19 +53,26 @@ app.post('/api-doc-bot', (req, res) => {
   }
 
   try {
-    const swaggerDoc = YAML.load(swaggerFilePath);
-    
-    // Dummy logic for now – you should replace this with actual AI logic
-    const dummyAnswer = `You asked: "${question}". (This is a placeholder answer using Swagger doc title: "${swaggerDoc.info.title}")`;
+    const results = searchSwagger(question);
 
-    res.json({ answer: dummyAnswer });
+    if (results.length === 0) {
+      return res.json({
+        answer: `🤖 Sorry, I couldn't find anything related to "${question}" in the API documentation.`
+      });
+    }
+
+    const formatted = results.map(r =>
+      `🔹 **${r.method} ${r.path}**\n${r.summary || r.description || 'No description provided.'}`
+    ).join('\n\n');
+
+    return res.json({ answer: formatted });
   } catch (error) {
     console.error('Error in /api-doc-bot:', error.message);
-    res.status(500).json({ error: 'Internal Server Error' });
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Server is running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
