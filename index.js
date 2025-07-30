@@ -43,7 +43,10 @@ function searchSwagger(question, swagger, source) {
     for (const [method, details] of Object.entries(methods)) {
       const combinedText = `${method} ${pathKey} ${details.summary || ''} ${details.description || ''}`.toLowerCase();
 
-      const isMatch = keywords.every(kw => combinedText.includes(kw));
+      const isMatch = keywords.every(kw =>
+        combinedText.includes(kw) || combinedText.includes(kw.slice(0, 5)) // Loose match
+      );
+
       if (isMatch) {
         matches.push({
           source,
@@ -58,6 +61,7 @@ function searchSwagger(question, swagger, source) {
 
   return matches;
 }
+
 
 // Endpoint to list available Swagger files
 app.get('/swagger-sources', (req, res) => {
