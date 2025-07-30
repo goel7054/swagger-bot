@@ -13,7 +13,7 @@ app.use(cors());
 
 // === Load all YAML files ===
 const swaggerDir = path.join(__dirname);
-const swaggerFiles = fs.readdirSync(swaggerDir).filter(f => f.endsWith('.yaml')); // <-- ADD ALL YOUR YAML FILES HERE
+const swaggerFiles = fs.readdirSync(swaggerDir).filter(f => f.endsWith('.yaml'));
 
 const apiEntries = [];
 
@@ -28,11 +28,18 @@ for (const fileName of swaggerFiles) {
     const methods = doc.paths[pathKey];
     for (const method in methods) {
       const details = methods[method];
+
+      const parameters = (details.parameters || []).map(p => `${p.name || ""} ${p.description || ""}`).join(" ");
+      const tags = (details.tags || []).join(" ");
+      
       apiEntries.push({
         method: method.toUpperCase(),
         path: pathKey,
         summary: details.summary || "",
         description: details.description || "",
+        operationId: details.operationId || "",
+        tags,
+        parameters,
         sourceFile: fileName,
       });
     }
@@ -41,7 +48,15 @@ for (const fileName of swaggerFiles) {
 
 // === Setup Fuse.js for fuzzy search ===
 const fuse = new Fuse(apiEntries, {
-  keys: ["summary", "description", "path", "method"],
+  keys: [
+    "summary",
+    "description",
+    "path",
+    "method",
+    "operationId",
+    "tags",
+    "parameters"
+  ],
   threshold: 0.4,
   includeScore: true,
 });
@@ -65,6 +80,8 @@ app.post("/search", (req, res) => {
     method: result.item.method,
     summary: result.item.summary,
     description: result.item.description,
+    operationId: result.item.operationId,
+    tags: result.item.tags,
     source: result.item.sourceFile,
     score: result.score.toFixed(2),
   }));
