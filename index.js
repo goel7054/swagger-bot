@@ -12,8 +12,8 @@ app.use(express.json());
 app.use(cors());
 
 // === Load all YAML files ===
-const swaggerDir = path.join(__dirname); // adjust if YAMLs are in a subfolder
-const swaggerFiles = ["user-api.yaml", "order-api.yaml", "product-api.yaml"]; // <-- ADD ALL YOUR YAML FILES HERE
+const swaggerDir = path.join(__dirname);
+const swaggerFiles = fs.readdirSync(swaggerDir).filter(f => f.endsWith('.yaml')); // <-- ADD ALL YOUR YAML FILES HERE
 
 const apiEntries = [];
 
