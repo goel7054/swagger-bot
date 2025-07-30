@@ -1,5 +1,6 @@
 const express = require("express");
 const fs = require("fs");
+const path = require("path");
 const YAML = require("yaml");
 const Fuse = require("fuse.js");
 const cors = require("cors");
@@ -10,33 +11,42 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cors());
 
-// Load and parse OpenAPI YAML
-const file = fs.readFileSync("./user.yaml", "utf8");
-const doc = YAML.parse(file);
+// === Load all YAML files ===
+const swaggerDir = path.join(__dirname); // adjust if YAMLs are in a subfolder
+const swaggerFiles = ["user-api.yaml", "order-api.yaml", "product-api.yaml"]; // <-- ADD ALL YOUR YAML FILES HERE
 
-// Preprocess API paths into searchable entries
 const apiEntries = [];
 
-for (const path in doc.paths) {
-  const methods = doc.paths[path];
-  for (const method in methods) {
-    const details = methods[method];
-    apiEntries.push({
-      method: method.toUpperCase(),
-      path,
-      summary: details.summary || "",
-      description: details.description || "",
-    });
+for (const fileName of swaggerFiles) {
+  const filePath = path.join(swaggerDir, fileName);
+  const fileContent = fs.readFileSync(filePath, "utf8");
+  const doc = YAML.parse(fileContent);
+
+  if (!doc.paths) continue;
+
+  for (const pathKey in doc.paths) {
+    const methods = doc.paths[pathKey];
+    for (const method in methods) {
+      const details = methods[method];
+      apiEntries.push({
+        method: method.toUpperCase(),
+        path: pathKey,
+        summary: details.summary || "",
+        description: details.description || "",
+        sourceFile: fileName,
+      });
+    }
   }
 }
 
-// Fuse.js setup for fuzzy search
+// === Setup Fuse.js for fuzzy search ===
 const fuse = new Fuse(apiEntries, {
   keys: ["summary", "description", "path", "method"],
-  threshold: 0.4, // Lower = stricter; adjust as needed
+  threshold: 0.4,
   includeScore: true,
 });
 
+// === Search API ===
 app.post("/search", (req, res) => {
   const { query } = req.body;
 
@@ -44,7 +54,7 @@ app.post("/search", (req, res) => {
     return res.status(400).json({ error: "Query string is required." });
   }
 
-  const results = fuse.search(query).slice(0, 5); // top 5 matches
+  const results = fuse.search(query).slice(0, 5); // top 5
 
   if (results.length === 0) {
     return res.json({ message: "No matching API endpoint found." });
@@ -55,15 +65,16 @@ app.post("/search", (req, res) => {
     method: result.item.method,
     summary: result.item.summary,
     description: result.item.description,
+    source: result.item.sourceFile,
     score: result.score.toFixed(2),
   }));
 
   return res.json({ matches: matched });
 });
 
-// Health check
+// === Health check ===
 app.get("/", (req, res) => {
-  res.send("API Documentation Bot is up and running!");
+  res.send("Multi-Swagger API Documentation Bot is up and running!");
 });
 
 app.listen(PORT, () => {
