@@ -9,43 +9,55 @@ app.use(express.json());
 
 const swaggerFilePath = path.join(__dirname, 'api.yaml');
 
-// Load YAML once at startup
-let swaggerDoc = {};
+// Load Swagger YAML once on startup
+let swaggerDoc;
 try {
   swaggerDoc = YAML.load(swaggerFilePath);
   console.log('✅ Swagger YAML loaded successfully');
 } catch (error) {
-  console.error('❌ Failed to load Swagger YAML:', error.message);
+  console.error('❌ Error loading Swagger YAML:', error.message);
 }
 
-// Simple helper to search API paths
-function searchSwagger(question) {
+// Utility function to search API docs
+function searchSwagger(question, swagger) {
   const lowerQ = question.toLowerCase();
   const matches = [];
 
-  if (!swaggerDoc.paths) return matches;
-
-  Object.entries(swaggerDoc.paths).forEach(([path, methods]) => {
-    Object.entries(methods).forEach(([method, details]) => {
-      const summary = details.summary || '';
-      const description = details.description || '';
-      const combined = `${method.toUpperCase()} ${path} ${summary} ${description}`.toLowerCase();
-
-      if (combined.includes(lowerQ)) {
+  for (const [path, methods] of Object.entries(swagger.paths)) {
+    for (const [method, details] of Object.entries(methods)) {
+      const combinedText = `${method} ${path} ${details.summary || ''} ${details.description || ''}`.toLowerCase();
+      if (combinedText.includes(lowerQ)) {
         matches.push({
           method: method.toUpperCase(),
           path,
-          summary: details.summary || '',
-          description: details.description || ''
+          summary: details.summary,
+          description: details.description,
         });
       }
-    });
+    }
+  }
+
+  if (matches.length === 0) {
+    return `🤔 Sorry, I couldn't find anything related to "${question}".`;
+  }
+
+  let response = `🔍 Found ${matches.length} matching endpoint(s):\n\n`;
+  matches.forEach((m, i) => {
+    response += `${i + 1}. **[${m.method}]** \`${m.path}\`\n   - ${m.summary}\n   - ${m.description}\n\n`;
   });
 
-  return matches;
+  return response;
 }
 
-// Endpoint for API Q&A
+// Endpoint to return full Swagger YAML as JSON
+app.get('/swagger-info', (req, res) => {
+  if (!swaggerDoc) {
+    return res.status(500).json({ error: 'Swagger not loaded' });
+  }
+  res.json(swaggerDoc);
+});
+
+// Chat-style API question answering
 app.post('/api-doc-bot', (req, res) => {
   const { question } = req.body;
   if (!question) {
@@ -53,26 +65,15 @@ app.post('/api-doc-bot', (req, res) => {
   }
 
   try {
-    const results = searchSwagger(question);
-
-    if (results.length === 0) {
-      return res.json({
-        answer: `🤖 Sorry, I couldn't find anything related to "${question}" in the API documentation.`
-      });
-    }
-
-    const formatted = results.map(r =>
-      `🔹 **${r.method} ${r.path}**\n${r.summary || r.description || 'No description provided.'}`
-    ).join('\n\n');
-
-    return res.json({ answer: formatted });
+    const answer = searchSwagger(question, swaggerDoc);
+    res.json({ answer });
   } catch (error) {
     console.error('Error in /api-doc-bot:', error.message);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
