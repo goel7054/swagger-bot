@@ -96,6 +96,66 @@ To do this click on ‘Apps’ in the main menu, click on the app in question, n
   "what is the base url of the api?": null // will be filled dynamically
 };
 
+const gettingStartedOptions = {
+  "1": "Environment setup",
+  "2": "Register on portal",
+  "3": "Create app on portal",
+  "4": "Subscribe to APIs",
+  "5": "Terminology",
+  "6": "OAuth",
+  "7": "Open Banking",
+};
+
+const gettingStartedDetails = {
+  "1": `**1. Environment setup**
+
+Before you test APIs, set up your local environment:
+
+🛠 Code Editors:
+- [Visual Studio Code](https://code.visualstudio.com)
+- [Eclipse](http://www.eclipse.org/downloads/)
+- [Atom](https://atom.io)
+- [Vim](http://www.vim.org)
+
+🔧 API Tools:
+- [Postman](https://www.getpostman.com/apps)
+- [cURL](https://curl.haxx.se/)
+- [SOAP UI](https://www.soapui.org/)`,
+
+  "2": `**2. Register on portal**
+
+1. Click 'Register your interest'.
+2. Fill in the registration form.
+3. Click the email verification link to activate your account.`,
+
+  "3": `**3. Create app on portal**
+
+1. Log in to the portal.
+2. Go to 'My applications' and click 'Create application'.
+3. Fill in details and save your Client ID & Secret.`,
+
+  "4": `**4. Subscribe to APIs**
+
+1. Go to the API product page.
+2. Click 'Subscribe', select a plan, and choose your app.
+3. You're now ready to call the API!`,
+
+  "5": `**5. Terminology**
+
+- **Authentication**: Proves identity.
+- **Authorisation**: Grants access rights.
+- **Tokens**: Used to access APIs securely (e.g. bearer tokens).`,
+
+  "6": `**6. OAuth**
+
+OAuth 2.0 enables secure authorisation without sharing credentials. Our APIs use this protocol for safe access.`,
+
+  "7": `**7. Open Banking (PSD2)**
+
+PSD2 allows third-party apps to access banking data securely with user consent — enabling better innovation and control.`,
+};
+
+
 // === Search API ===
 app.post("/search", (req, res) => {
   const { query } = req.body;
@@ -110,9 +170,22 @@ app.post("/search", (req, res) => {
   const greetingPatterns = [
     "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings"
   ];
-
   if (greetingPatterns.includes(normalizedQuery)) {
     return res.json({ answer: "Hello! 👋 How can I help you with the Nedbank API Marketplace?" });
+  }
+
+  // === Getting Started Menu ===
+  if (normalizedQuery === "how to get started?") {
+    const optionsList = Object.entries(gettingStartedOptions)
+      .map(([num, title]) => `${num}. ${title}`)
+      .join("\n");
+    return res.json({
+      answer: `Here are 7 steps to get started:\n\n${optionsList}\n\nReply with a number (1–7) to learn more.`
+    });
+  }
+
+  if (gettingStartedDetails[normalizedQuery]) {
+    return res.json({ answer: gettingStartedDetails[normalizedQuery] });
   }
 
   // === Static Q&A ===
@@ -162,6 +235,7 @@ app.post("/search", (req, res) => {
 
   return res.json({ message: "No matching API endpoint or metadata found." });
 });
+
 
 // === Health Check ===
 app.get("/", (req, res) => {
