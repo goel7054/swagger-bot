@@ -106,7 +106,16 @@ app.post("/search", (req, res) => {
 
   const normalizedQuery = query.trim().toLowerCase();
 
-  // Check static exact matches first
+  // === Greeting logic ===
+  const greetingPatterns = [
+    "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings"
+  ];
+
+  if (greetingPatterns.includes(normalizedQuery)) {
+    return res.json({ answer: "Hello! 👋 How can I help you with the Nedbank API Marketplace?" });
+  }
+
+  // === Static Q&A ===
   if (Object.keys(staticQA).includes(normalizedQuery)) {
     if (normalizedQuery === "what is the base url of the api?") {
       const allUrls = globalMetadata.flatMap(m => m.servers);
@@ -119,7 +128,7 @@ app.post("/search", (req, res) => {
     return res.json({ answer: staticQA[normalizedQuery] });
   }
 
-  // Fuzzy Swagger search
+  // === Fuzzy Swagger Search ===
   const results = fuse.search(query).slice(0, 5);
   if (results.length > 0) {
     const matched = results.map((result) => ({
@@ -135,7 +144,7 @@ app.post("/search", (req, res) => {
     return res.json({ matches: matched });
   }
 
-  // Metadata fallback
+  // === Metadata fallback ===
   if (normalizedQuery.includes("api title") || normalizedQuery.includes("api name")) {
     const titles = globalMetadata.map(m => `${m.fileName}: ${m.title}`);
     return res.json({ answer: `API Titles:\n${titles.join("\n")}` });
