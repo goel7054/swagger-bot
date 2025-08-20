@@ -17,7 +17,7 @@ app.use(cors());
 
 // ---------- Hugging Face config ----------
 const HF_API_KEY = process.env.HF_API_KEY || "";
-const HF_MODEL = process.env.HF_MODEL || "google/flan-t5-base"; // small & fast for POC
+const HF_MODEL = process.env.HF_MODEL || "google/flan-t5-small"; // small & fast for POC
 // HF task: flan-t5 uses text2text-generation
 const HF_TASK = process.env.HF_TASK || "text2text-generation";
 
@@ -48,6 +48,7 @@ async function callHuggingFace(prompt) {
         first.generated_text ||
         first.summary_text ||
         first.translation_text ||
+        first.output_text || 
         JSON.stringify(first)
       );
     }
@@ -397,3 +398,4 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
