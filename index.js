@@ -18,7 +18,7 @@ app.use(cors());
 // ---------- Hugging Face config ----------
 const HF_API_KEY = process.env.HF_API_KEY || "";
 const HF_MODEL = process.env.HF_MODEL || "google/flan-t5-base"; // primary model
-const FALLBACK_MODEL = process.env.FALLBACK_MODEL || "distilbert-base-uncased"; // fallback model
+const FALLBACK_MODEL = process.env.FALLBACK_MODEL || "google/flan-t5-small"; // fallback model
 const HF_TASK = process.env.HF_TASK || "text2text-generation"; // task type
 
 // Helper: call Hugging Face Inference API with fallback
@@ -334,6 +334,7 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
 
 
 
