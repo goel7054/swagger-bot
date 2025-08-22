@@ -38,25 +38,29 @@ async function getPipeline(task, model) {
 
 // ---------- Safe Text Helper ----------
 function safeText(input) {
+  if (input == null) return "";
   if (typeof input === "string") return input;
+  if (typeof input === "number" || typeof input === "boolean") return String(input);
   if (Array.isArray(input)) return input.map(safeText).join(" ");
-  if (typeof input === "object" && input !== null)
-    return Object.values(input).map(safeText).join(" ");
-  return String(input || "");
+  if (typeof input === "object") return Object.values(input).map(safeText).join(" ");
+  return "";
 }
 
 // ---------- Answer With Local AI ----------
 async function answerWithLocalAI({ question, context }) {
   const safeQuestion = safeText(question).trim();
-  const safeContext = safeText(context).replace(/\s+/g, " ").trim();
+  let safeContext = safeText(context).replace(/\s+/g, " ").trim();
+
+  if (!safeQuestion) return "Question is empty.";
+  if (!safeContext) safeContext = "No context provided.";
 
   // 1) Extractive QA
   try {
     const qa = await getPipeline("question-answering", LOCAL_QA_MODEL);
     const out = await qa({ question: safeQuestion, context: safeContext });
-    if (out?.answer && out.answer.trim()) {
+    if (out?.answer && typeof out.answer === "string" && out.answer.trim()) {
       if ((out.score ?? 0) >= 0.25 || out.answer.trim().length >= 12) {
-        return out.answer;
+        return out.answer.trim();
       }
     }
   } catch (e) {
@@ -74,8 +78,11 @@ ${safeContext}
 Question: ${safeQuestion}
 
 Answer:`;
+
     const out = await t2t(prompt, { max_new_tokens: 256 });
-    if (Array.isArray(out) && out[0]?.generated_text) return out[0].generated_text;
+    if (Array.isArray(out) && typeof out[0]?.generated_text === "string") {
+      return out[0].generated_text.trim();
+    }
     return "I don't know.";
   } catch (e) {
     console.error("[AI] T2T error:", e?.message || e);
@@ -96,7 +103,7 @@ function buildContext({ results = [], limitChars = 3500, includeMeta = "" }) {
   for (const r of results) {
     const it = r.item;
     lines.push(
-      `[${it.method}] ${it.path} (${it.sourceFile})\nsummary: ${it.summary || "-"}\ndesc: ${it.description || "-"}\noperationId: ${it.operationId || "-"}\ntags: ${it.tags || "-"}\nparams: ${it.parameters || "-"}`
+      `[${it.method}] ${it.path} (${it.sourceFile})\nsummary: ${safeText(it.summary) || "-"}\ndesc: ${safeText(it.description) || "-"}\noperationId: ${safeText(it.operationId) || "-"}\ntags: ${safeText(it.tags) || "-"}\nparams: ${safeText(it.parameters) || "-"}`
     );
   }
   let ctx = "";
@@ -120,10 +127,10 @@ for (const fileName of swaggerFiles) {
   if (doc.info || doc.servers) {
     globalMetadata.push({
       fileName,
-      title: doc.info?.title || "",
-      version: doc.info?.version || "",
-      description: doc.info?.description || "",
-      servers: doc.servers?.map(s => s.url) || [],
+      title: safeText(doc.info?.title),
+      version: safeText(doc.info?.version),
+      description: safeText(doc.info?.description),
+      servers: doc.servers?.map(s => safeText(s.url)) || [],
     });
   }
 
@@ -132,14 +139,14 @@ for (const fileName of swaggerFiles) {
     const methods = doc.paths[pathKey];
     for (const method in methods) {
       const details = methods[method];
-      const parameters = (details.parameters || []).map(p => `${p.name || ""} ${p.description || ""}`).join(" ");
-      const tags = (details.tags || []).join(" ");
+      const parameters = (details.parameters || []).map(p => `${safeText(p.name)} ${safeText(p.description)}`).join(" ");
+      const tags = (details.tags || []).map(t => safeText(t)).join(" ");
       apiEntries.push({
         method: method.toUpperCase(),
         path: pathKey,
-        summary: details.summary || "",
-        description: details.description || "",
-        operationId: details.operationId || "",
+        summary: safeText(details.summary),
+        description: safeText(details.description),
+        operationId: safeText(details.operationId),
         tags,
         parameters,
         sourceFile: fileName,
