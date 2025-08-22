@@ -28,7 +28,7 @@ async function callHuggingFace(prompt) {
   }
 
   async function query(model) {
-    const url = `https://api-inference.huggingface.co/models/${model}`;
+    const url = `https://api-inference.huggingface.co/models/${model}?wait_for_model=true`;
     const { data } = await axios.post(
       url,
       { inputs: prompt },
@@ -334,6 +334,7 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
 
 
 
