@@ -38,8 +38,8 @@ async function getPipeline(task, model) {
 }
 
 async function answerWithLocalAI({ question, context }) {
-  const safeQuestion = typeof question === "string" ? question : "";
-  const safeContext = typeof context === "string" ? context : JSON.stringify(context || "");
+  const safeQuestion = String(question || "").trim();
+  const safeContext = String(context || "").replace(/\s+/g, " ").trim();
 
   // 1) Extractive QA
   try {
@@ -84,14 +84,12 @@ function isQuestion(q) {
 
 function buildContext({ results = [], limitChars = 3500, includeMeta = "" }) {
   const lines = includeMeta ? [includeMeta] : [];
-
   for (const r of results) {
     const it = r.item;
     lines.push(
       `[${it.method}] ${it.path} (${it.sourceFile})\nsummary: ${it.summary || "-"}\ndesc: ${it.description || "-"}\noperationId: ${it.operationId || "-"}\ntags: ${it.tags || "-"}\nparams: ${it.parameters || "-"}`
     );
   }
-
   let ctx = "";
   for (const block of lines) {
     if ((ctx + "\n" + block).length > limitChars) break;
@@ -127,7 +125,6 @@ for (const fileName of swaggerFiles) {
       const details = methods[method];
       const parameters = (details.parameters || []).map(p => `${p.name || ""} ${p.description || ""}`).join(" ");
       const tags = (details.tags || []).join(" ");
-
       apiEntries.push({
         method: method.toUpperCase(),
         path: pathKey,
@@ -155,7 +152,7 @@ const staticQA = {
   "how do i see my api usage?": `The number of requests, for different APIs ...`,
   "how can i test an api?": `It is possible to test an API from the Developer Portal ...`,
   "how do i reset my app client secret?": `It is possible to reset your Client Secret if you forget it ...`,
-  "what is the base url of the api?": null, // filled dynamically
+  "what is the base url of the api?": null,
 };
 
 // ---------- “Getting Started” ----------
