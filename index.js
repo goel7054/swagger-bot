@@ -1,4 +1,3 @@
-// index.js
 require("dotenv").config();
 
 const express = require("express");
@@ -37,9 +36,19 @@ async function getPipeline(task, model) {
   return PIPE_CACHE[key];
 }
 
+// ---------- Safe Text Helper ----------
+function safeText(input) {
+  if (typeof input === "string") return input;
+  if (Array.isArray(input)) return input.map(safeText).join(" ");
+  if (typeof input === "object" && input !== null)
+    return Object.values(input).map(safeText).join(" ");
+  return String(input || "");
+}
+
+// ---------- Answer With Local AI ----------
 async function answerWithLocalAI({ question, context }) {
-  const safeQuestion = String(question || "").trim();
-  const safeContext = String(context || "").replace(/\s+/g, " ").trim();
+  const safeQuestion = safeText(question).trim();
+  const safeContext = safeText(context).replace(/\s+/g, " ").trim();
 
   // 1) Extractive QA
   try {
