@@ -57,7 +57,7 @@ async function answerWithLocalAI({ question, context }) {
   // 1) Extractive QA
   try {
     const qa = await getPipeline("question-answering", LOCAL_QA_MODEL);
-    const out = await qa({ question: safeQuestion, context: safeContext });
+    const out = await qa({ question: String(safeQuestion), context: String(safeContext) });
     if (out?.answer && typeof out.answer === "string" && out.answer.trim()) {
       if ((out.score ?? 0) >= 0.25 || out.answer.trim().length >= 12) {
         return out.answer.trim();
@@ -79,10 +79,13 @@ Question: ${safeQuestion}
 
 Answer:`;
 
-    const out = await t2t(prompt, { max_new_tokens: 256 });
+    const out = await t2t(String(prompt), { max_new_tokens: 256 });
+
     if (Array.isArray(out) && typeof out[0]?.generated_text === "string") {
       return out[0].generated_text.trim();
     }
+    if (out?.generated_text) return out.generated_text.trim();
+
     return "I don't know.";
   } catch (e) {
     console.error("[AI] T2T error:", e?.message || e);
