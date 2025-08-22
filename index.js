@@ -45,8 +45,7 @@ async function getPipeline(task, model) {
 }
 
 async function answerWithLocalAI({ question, context }) {
-  const safeContext =
-    typeof context === "string" ? context : String(context ?? "");
+ const safeContext = context && typeof context === "string" ? context : JSON.stringify(context || "");
 
   // 1) Extractive QA
   try {
@@ -355,3 +354,4 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
