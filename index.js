@@ -58,13 +58,13 @@ async function callHuggingFace(prompt) {
     const result = await query(HF_MODEL);
     return `(${HF_MODEL}) → ${result}`;
   } catch (err) {
-    console.error(`HF error with model ${HF_MODEL}:`, err.response?.data || err.message);
+    console.error(`HF error with model ${HF_MODEL}:`, err.response?.data || err.message, err.response?.status);
     console.log(`⚠️ Falling back to ${FALLBACK_MODEL}...`);
     try {
       const fallbackResult = await query(FALLBACK_MODEL);
       return `(${FALLBACK_MODEL}) → ${fallbackResult}`;
     } catch (err2) {
-      console.error(`HF fallback error:`, err2.response?.data || err2.message);
+      console.error(`HF fallback error:`, err.response?.data || err.message, err.response?.status);
       return "AI service unavailable right now.";
     }
   }
@@ -334,6 +334,7 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
 
 
 
