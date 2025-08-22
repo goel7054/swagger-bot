@@ -1,5 +1,5 @@
 // index.js
-require("dotenv").config(); // no-op on Render, useful locally
+require("dotenv").config();
 
 const express = require("express");
 const fs = require("fs");
@@ -7,78 +7,88 @@ const path = require("path");
 const YAML = require("yaml");
 const Fuse = require("fuse.js");
 const cors = require("cors");
-const axios = require("axios");
 
+// ---------- App ----------
 const app = express();
 const PORT = process.env.PORT || 3000;
-
 app.use(express.json());
 app.use(cors());
 
-// ---------- Hugging Face config ----------
-const HF_API_KEY = process.env.HF_API_KEY || "";
-const HF_MODEL = process.env.HF_MODEL || "mistralai/Mistral-7B-Instruct-v0.2"; // primary model
-const FALLBACK_MODEL = process.env.FALLBACK_MODEL || "facebook/bart-large-cnn"; // fallback model
-const HF_TASK = process.env.HF_TASK || "text2text-generation"; // task type
+// ---------- (Optional) Cache dir for models ----------
+if (!process.env.TRANSFORMERS_CACHE) {
+  // Set a default cache path (you can override via env)
+  process.env.TRANSFORMERS_CACHE = path.join(__dirname, ".transformers-cache");
+}
 
-// Helper: call Hugging Face Inference API with fallback
-async function callHuggingFace(prompt) {
-  if (!HF_API_KEY) {
-    return "Hugging Face API key is not configured. Please set HF_API_KEY.";
+// ---------- Local AI (transformers.js) ----------
+const LOCAL_QA_MODEL = process.env.LOCAL_QA_MODEL || "Xenova/distilbert-base-cased-distilled-squad";
+const LOCAL_T2T_MODEL = process.env.LOCAL_T2T_MODEL || "Xenova/t5-small";
+
+// Lazy singletons
+let _pipeline;
+const PIPE_CACHE = {};
+
+async function getPipeline(task, model) {
+  if (!_pipeline) {
+    // dynamic import works fine in CommonJS
+    _pipeline = await import("@xenova/transformers");
   }
-
-  async function query(model) {
-    const url = `https://api-inference.huggingface.co/models/${model}?wait_for_model=true`;
-    const { data } = await axios.post(
-      url,
-      { inputs: prompt },
-      {
-        headers: {
-          Authorization: `Bearer ${HF_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        timeout: 30000,
-      }
-    );
-
-    if (Array.isArray(data) && data.length) {
-      const first = data[0];
-      return (
-        first.generated_text ||
-        first.summary_text ||
-        first.translation_text ||
-        first.output_text ||
-        JSON.stringify(first)
-      );
-    }
-    return typeof data === "string" ? data : JSON.stringify(data);
+  const key = `${task}::${model}`;
+  if (!PIPE_CACHE[key]) {
+    PIPE_CACHE[key] = _pipeline.pipeline(task, model);
+    console.log(`[AI] Loading ${task} → ${model} (first run will download weights)`);
   }
+  return PIPE_CACHE[key];
+}
 
+async function answerWithLocalAI({ question, context }) {
+  // 1) Try extractive QA
   try {
-    const result = await query(HF_MODEL);
-    return `(${HF_MODEL}) → ${result}`;
-  } catch (err) {
-    console.error(`HF error with model ${HF_MODEL}:`, err.response?.data || err.message, err.response?.status);
-    console.log(`⚠️ Falling back to ${FALLBACK_MODEL}...`);
-    try {
-      const fallbackResult = await query(FALLBACK_MODEL);
-      return `(${FALLBACK_MODEL}) → ${fallbackResult}`;
-    } catch (err2) {
-      console.error(`HF fallback error:`, err.response?.data || err.message, err.response?.status);
-      return "AI service unavailable right now.";
+    const qa = await getPipeline("question-answering", LOCAL_QA_MODEL);
+    const out = await qa({ question, context });
+    // out = { answer, score, start, end }
+    if (out?.answer && out.answer.trim()) {
+      // accept if reasonably confident or answer length is meaningful
+      if ((out.score ?? 0) >= 0.25 || out.answer.trim().length >= 12) {
+        return `${out.answer}`;
+      }
     }
+  } catch (e) {
+    console.error("[AI] QA error:", e.message);
+  }
+
+  // 2) Fall back to text2text (generate from context)
+  try {
+    const t2t = await getPipeline("text2text-generation", LOCAL_T2T_MODEL);
+    const prompt =
+`Answer the user's question using ONLY the context below. If the answer isn't in the context, say "I don't know."
+
+Context:
+${context}
+
+Question: ${question}
+
+Answer:`;
+    const out = await t2t(prompt, { max_new_tokens: 256 });
+    // out = [{ generated_text }]
+    if (Array.isArray(out) && out[0]?.generated_text) {
+      return out[0].generated_text;
+    }
+    return "I don't know.";
+  } catch (e) {
+    console.error("[AI] T2T error:", e.message);
+    return "Local AI is warming up or unavailable. Please try again.";
   }
 }
 
-// Utility: detect if the user asked a question
+// ---------- Helpers ----------
 function isQuestion(q) {
   const s = q.trim().toLowerCase();
   if (s.endsWith("?")) return true;
   const starters = ["how", "what", "where", "when", "why", "can", "does", "do", "is", "are", "should", "could", "explain"];
-  return starters.some(w => s.startsWith(w + " "));
+  return starters.some((w) => s.startsWith(w + " "));
 }
 
-// Utility: build context from Fuse results + metadata with a char budget
 function buildContext({ results = [], limitChars = 3500, includeMeta = "" }) {
   const lines = [];
   if (includeMeta) lines.push(includeMeta);
@@ -87,11 +97,11 @@ function buildContext({ results = [], limitChars = 3500, includeMeta = "" }) {
     const it = r.item;
     lines.push(
       `[${it.method}] ${it.path} (${it.sourceFile})\n` +
-      `summary: ${it.summary || "-"}\n` +
-      `desc: ${it.description || "-"}\n` +
-      `operationId: ${it.operationId || "-"}\n` +
-      `tags: ${it.tags || "-"}\n` +
-      `params: ${it.parameters || "-"}\n`
+        `summary: ${it.summary || "-"}\n` +
+        `desc: ${it.description || "-"}\n` +
+        `operationId: ${it.operationId || "-"}\n` +
+        `tags: ${it.tags || "-"}\n` +
+        `params: ${it.parameters || "-"}\n`
     );
   }
 
@@ -105,7 +115,7 @@ function buildContext({ results = [], limitChars = 3500, includeMeta = "" }) {
 
 // ---------- Load Swagger files ----------
 const swaggerDir = path.join(__dirname);
-const swaggerFiles = fs.readdirSync(swaggerDir).filter(f => f.endsWith(".yaml"));
+const swaggerFiles = fs.readdirSync(swaggerDir).filter((f) => f.endsWith(".yaml"));
 
 const apiEntries = [];
 const globalMetadata = [];
@@ -121,7 +131,7 @@ for (const fileName of swaggerFiles) {
       title: doc.info?.title || "",
       version: doc.info?.version || "",
       description: doc.info?.description || "",
-      servers: doc.servers?.map(s => s.url) || [],
+      servers: doc.servers?.map((s) => s.url) || [],
     });
   }
 
@@ -132,7 +142,7 @@ for (const fileName of swaggerFiles) {
     for (const method in methods) {
       const details = methods[method];
       const parameters = (details.parameters || [])
-        .map(p => `${p.name || ""} ${p.description || ""}`)
+        .map((p) => `${p.name || ""} ${p.description || ""}`)
         .join(" ");
       const tags = (details.tags || []).join(" ");
 
@@ -163,7 +173,7 @@ const staticQA = {
   "how do i see my api usage?": `The number of requests, for different APIs ...`,
   "how can i test an api?": `It is possible to test an API from the Developer Portal ...`,
   "how do i reset my app client secret?": `It is possible to reset your Client Secret if you forget it ...`,
-  "what is the base url of the api?": null // filled dynamically
+  "what is the base url of the api?": null, // filled dynamically
 };
 
 // ---------- “Getting Started” menu ----------
@@ -187,7 +197,7 @@ const gettingStartedDetails = {
   "7": `**7. Open Banking (PSD2)** ...`,
 };
 
-// ---------- Search API ----------
+// ---------- Routes ----------
 app.post("/search", async (req, res) => {
   const { query } = req.body;
 
@@ -209,7 +219,7 @@ app.post("/search", async (req, res) => {
       .map(([num, title]) => `${num}. ${title}`)
       .join("\n");
     return res.json({
-      answer: `Here are 7 steps to get started:\n\n${optionsList}\n\nReply with a number (1–7) to learn more.`
+      answer: `Here are 7 steps to get started:\n\n${optionsList}\n\nReply with a number (1–7) to learn more.`,
     });
   }
 
@@ -217,10 +227,10 @@ app.post("/search", async (req, res) => {
     return res.json({ answer: gettingStartedDetails[normalizedQuery] });
   }
 
-  // Static Q&A first
+  // Static Q&A
   if (Object.keys(staticQA).includes(normalizedQuery)) {
     if (normalizedQuery === "what is the base url of the api?") {
-      const allUrls = globalMetadata.flatMap(m => m.servers);
+      const allUrls = globalMetadata.flatMap((m) => m.servers);
       if (allUrls.length === 0) {
         return res.json({ answer: "No base URL found in the documentation." });
       }
@@ -242,28 +252,18 @@ app.post("/search", async (req, res) => {
     score: result.score.toFixed(2),
   }));
 
+  // Build metadata/context
+  const metaSummary =
+    globalMetadata.length > 0
+      ? "APIs:\n" +
+        globalMetadata
+          .map((m) => `• ${m.title || m.fileName} v${m.version || "-"} servers: ${m.servers.join(", ") || "-"}`)
+          .join("\n")
+      : "";
+  const context = buildContext({ results, includeMeta: metaSummary });
+
   if (isQuestion(query)) {
-    const metaSummary =
-      globalMetadata.length > 0
-        ? "APIs:\n" +
-          globalMetadata.map(m => `• ${m.title || m.fileName} v${m.version || "-"} servers: ${m.servers.join(", ") || "-"}`).join("\n")
-        : "";
-
-    const context = buildContext({ results, includeMeta: metaSummary });
-    const prompt =
-`You are an assistant for developers working on Nedbank APIs.
-Answer briefly and accurately using ONLY the context. If unknown, say you don't know.
-
-Question:
-${query}
-
-Context:
-${context}
-
-Answer:`;
-
-    const aiAnswer = await callHuggingFace(prompt);
-
+    const aiAnswer = await answerWithLocalAI({ question: query, context });
     if (matched.length > 0) {
       return res.json({ answer: aiAnswer, matches: matched });
     }
@@ -274,23 +274,11 @@ Answer:`;
     return res.json({ matches: matched });
   }
 
-  const metaOnly =
-    globalMetadata.length > 0
-      ? "APIs:\n" +
-        globalMetadata.map(m => `• ${m.title || m.fileName} v${m.version || "-"} servers: ${m.servers.join(", ") || "-"}`).join("\n")
-      : "No API metadata available.";
-
-  const fallbackPrompt =
-`User asked: "${query}"
-This user needs help about Nedbank APIs. Use the metadata below to answer concisely. If insufficient, say you don't know.
-
-Metadata:
-${metaOnly}
-
-Answer:`;
-
-  const fallbackAnswer = await callHuggingFace(fallbackPrompt);
-  return res.json({ answer: fallbackAnswer || "No matching API endpoint or metadata found." });
+  // Non-question + no matches → attempt short contextual answer, else don't know
+  const fallbackContext =
+    metaSummary || "No API metadata available.";
+  const aiAnswer = await answerWithLocalAI({ question: query, context: fallbackContext });
+  return res.json({ answer: aiAnswer || "No matching API endpoint or metadata found." });
 });
 
 // Convenience: direct AI ask endpoint
@@ -304,41 +292,21 @@ app.post("/ask", async (req, res) => {
   const metaSummary =
     globalMetadata.length > 0
       ? "APIs:\n" +
-        globalMetadata.map(m => `• ${m.title || m.fileName} v${m.version || "-"} servers: ${m.servers.join(", ") || "-"}`).join("\n")
+        globalMetadata
+          .map((m) => `• ${m.title || m.fileName} v${m.version || "-"} servers: ${m.servers.join(", ") || "-"}`)
+          .join("\n")
       : "";
-
   const context = buildContext({ results, includeMeta: metaSummary, limitChars: 4500 });
 
-  const prompt =
-`You are a helpful API assistant for Nedbank API Marketplace.
-Use the provided context to answer the user's question. Be concise, step-by-step if needed.
-If the answer is not in the context, say you don't know.
-
-Question:
-${question}
-
-Context:
-${context}
-
-Answer:`;
-
-  const aiAnswer = await callHuggingFace(prompt);
+  const aiAnswer = await answerWithLocalAI({ question, context });
   return res.json({ answer: aiAnswer });
 });
 
 // Health Check
 app.get("/", (req, res) => {
-  res.send("Multi-Swagger API Documentation Bot is up and running!");
+  res.send("Multi-Swagger API Documentation Bot (local transformers.js) is up and running!");
 });
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
-
-
-
-
-
-
-
-
