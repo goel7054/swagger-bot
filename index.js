@@ -344,28 +344,6 @@ app.post("/qa", async (req, res) => {
     res.status(500).json({ error: "Failed to get answer" });
   }
 });
-  const results = fuse.search(question).slice(0, 10);
-  const metaSummary =
-    globalMetadata.length > 0
-      ? "APIs:\n" +
-        globalMetadata
-          .map(
-            (m) =>
-              `• ${m.title || m.fileName} v${m.version || "-"} servers: ${
-                m.servers.join(", ") || "-"
-              }`
-          )
-          .join("\n")
-      : "";
-  const context = buildContext({
-    results,
-    includeMeta: metaSummary,
-    limitChars: 4500,
-  });
-
-  const answer = await answerWithLocalAI({ question, context });
-  return res.json({ answer });
-});
 
 // Health Check
 app.get("/", (req, res) => {
@@ -377,5 +355,3 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
-
-
