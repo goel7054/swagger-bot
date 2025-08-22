@@ -17,7 +17,7 @@ app.use(cors());
 
 // ---------- Hugging Face config ----------
 const HF_API_KEY = process.env.HF_API_KEY || "";
-const HF_MODEL = process.env.HF_MODEL || "t5-base"; // primary model
+const HF_MODEL = process.env.HF_MODEL || "mistralai/Mistral-7B-Instruct-v0.2"; // primary model
 const FALLBACK_MODEL = process.env.FALLBACK_MODEL || "facebook/bart-large-cnn"; // fallback model
 const HF_TASK = process.env.HF_TASK || "text2text-generation"; // task type
 
@@ -334,6 +334,7 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
 
 
 
