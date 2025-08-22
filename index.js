@@ -334,13 +334,19 @@ app.post("/search", async (req, res) => {
 });
 
 // Direct AI ask endpoint
-app.post("/ask", async (req, res) => {
-  const { question } = req.body;
-  if (!question || typeof question !== "string") {
-    return res
-      .status(400)
-      .json({ error: "Field 'question' is required." });
+app.post('/ask', async (req, res) => {
+  const { question, context } = req.body;
+  try {
+    const answer = await qaPipeline({
+      question,
+      context
+    });
+    res.json({ answer });
+  } catch (err) {
+    console.error('[AI] QA error:', err.message);
+    res.status(500).json({ error: 'Failed to get answer' });
   }
+});
 
   const results = fuse.search(question).slice(0, 10);
   const metaSummary =
@@ -375,3 +381,4 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
