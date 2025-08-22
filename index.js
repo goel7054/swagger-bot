@@ -16,13 +16,15 @@ app.use(cors());
 
 // ---------- (Optional) Cache dir for models ----------
 if (!process.env.TRANSFORMERS_CACHE) {
-  // Set a default cache path (you can override via env)
   process.env.TRANSFORMERS_CACHE = path.join(__dirname, ".transformers-cache");
 }
 
 // ---------- Local AI (transformers.js) ----------
-const LOCAL_QA_MODEL = process.env.LOCAL_QA_MODEL || "Xenova/distilbert-base-cased-distilled-squad";
-const LOCAL_T2T_MODEL = process.env.LOCAL_T2T_MODEL || "Xenova/t5-small";
+const LOCAL_QA_MODEL =
+  process.env.LOCAL_QA_MODEL ||
+  "Xenova/distilbert-base-cased-distilled-squad";
+const LOCAL_T2T_MODEL =
+  process.env.LOCAL_T2T_MODEL || "Xenova/t5-small";
 
 // Lazy singletons
 let _pipeline;
@@ -30,26 +32,26 @@ const PIPE_CACHE = {};
 
 async function getPipeline(task, model) {
   if (!_pipeline) {
-    // dynamic import works fine in CommonJS
     _pipeline = await import("@xenova/transformers");
   }
   const key = `${task}::${model}`;
   if (!PIPE_CACHE[key]) {
-    // cache the promise so concurrent calls share the same load
     PIPE_CACHE[key] = _pipeline.pipeline(task, model);
-    console.log(`[AI] Loading ${task} → ${model} (first run will download weights)`);
+    console.log(
+      `[AI] Loading ${task} → ${model} (first run will download weights)`
+    );
   }
   return PIPE_CACHE[key];
 }
 
 async function answerWithLocalAI({ question, context }) {
-  // Always pass a string to transformers
-  const safeContext = typeof context === "string" ? context : String(context ?? "");
+  const safeContext =
+    typeof context === "string" ? context : String(context ?? "");
 
-  // 1) Try extractive QA
+  // 1) Extractive QA
   try {
     const qa = await getPipeline("question-answering", LOCAL_QA_MODEL);
-    const out = await qa({ question, context: safeContext }); // out = { answer, score, start, end }
+    const out = await qa({ question, context: safeContext });
     if (out?.answer && out.answer.trim()) {
       if ((out.score ?? 0) >= 0.25 || out.answer.trim().length >= 12) {
         return `${out.answer}`;
@@ -59,11 +61,10 @@ async function answerWithLocalAI({ question, context }) {
     console.error("[AI] QA error:", e?.message || e);
   }
 
-  // 2) Fall back to text2text (generate from context)
+  // 2) Fallback to text2text generation
   try {
     const t2t = await getPipeline("text2text-generation", LOCAL_T2T_MODEL);
-    const prompt =
-`Answer the user's question using ONLY the context below. If the answer isn't in the context, say "I don't know."
+    const prompt = `Answer the user's question using ONLY the context below. If the answer isn't in the context, say "I don't know."
 
 Context:
 ${safeContext}
@@ -72,7 +73,6 @@ Question: ${question}
 
 Answer:`;
     const out = await t2t(prompt, { max_new_tokens: 256 });
-    // out = [{ generated_text }]
     if (Array.isArray(out) && out[0]?.generated_text) {
       return out[0].generated_text;
     }
@@ -87,7 +87,21 @@ Answer:`;
 function isQuestion(q) {
   const s = q.trim().toLowerCase();
   if (s.endsWith("?")) return true;
-  const starters = ["how", "what", "where", "when", "why", "can", "does", "do", "is", "are", "should", "could", "explain"];
+  const starters = [
+    "how",
+    "what",
+    "where",
+    "when",
+    "why",
+    "can",
+    "does",
+    "do",
+    "is",
+    "are",
+    "should",
+    "could",
+    "explain",
+  ];
   return starters.some((w) => s.startsWith(w + " "));
 }
 
@@ -117,7 +131,9 @@ function buildContext({ results = [], limitChars = 3500, includeMeta = "" }) {
 
 // ---------- Load Swagger files ----------
 const swaggerDir = path.join(__dirname);
-const swaggerFiles = fs.readdirSync(swaggerDir).filter((f) => f.endsWith(".yaml"));
+const swaggerFiles = fs
+  .readdirSync(swaggerDir)
+  .filter((f) => f.endsWith(".yaml"));
 
 const apiEntries = [];
 const globalMetadata = [];
@@ -163,18 +179,31 @@ for (const fileName of swaggerFiles) {
 }
 
 const fuse = new Fuse(apiEntries, {
-  keys: ["summary", "description", "path", "method", "operationId", "tags", "parameters"],
+  keys: [
+    "summary",
+    "description",
+    "path",
+    "method",
+    "operationId",
+    "tags",
+    "parameters",
+  ],
   threshold: 0.4,
   includeScore: true,
 });
 
 // ---------- Static Q&A ----------
 const staticQA = {
-  "what are plans?": `A plan is a collection of API resources or subsets of resources ...`,
-  "how do i register an app?": `When you add an app you are provided with a client ID ...`,
-  "how do i see my api usage?": `The number of requests, for different APIs ...`,
-  "how can i test an api?": `It is possible to test an API from the Developer Portal ...`,
-  "how do i reset my app client secret?": `It is possible to reset your Client Secret if you forget it ...`,
+  "what are plans?":
+    `A plan is a collection of API resources or subsets of resources ...`,
+  "how do i register an app?":
+    `When you add an app you are provided with a client ID ...`,
+  "how do i see my api usage?":
+    `The number of requests, for different APIs ...`,
+  "how can i test an api?":
+    `It is possible to test an API from the Developer Portal ...`,
+  "how do i reset my app client secret?":
+    `It is possible to reset your Client Secret if you forget it ...`,
   "what is the base url of the api?": null, // filled dynamically
 };
 
@@ -210,9 +239,20 @@ app.post("/search", async (req, res) => {
   const normalizedQuery = query.trim().toLowerCase();
 
   // Greetings
-  const greetingPatterns = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings"];
+  const greetingPatterns = [
+    "hi",
+    "hello",
+    "hey",
+    "good morning",
+    "good afternoon",
+    "good evening",
+    "greetings",
+  ];
   if (greetingPatterns.includes(normalizedQuery)) {
-    return res.json({ answer: "Hello! 👋 How can I help you with the Nedbank API Marketplace?" });
+    return res.json({
+      answer:
+        "Hello! 👋 How can I help you with the Nedbank API Marketplace?",
+    });
   }
 
   // Getting started menu
@@ -236,7 +276,9 @@ app.post("/search", async (req, res) => {
       if (allUrls.length === 0) {
         return res.json({ answer: "No base URL found in the documentation." });
       }
-      return res.json({ answer: `Base URLs found:\n- ${allUrls.join("\n- ")}` });
+      return res.json({
+        answer: `Base URLs found:\n- ${allUrls.join("\n- ")}`,
+      });
     }
     return res.json({ answer: staticQA[normalizedQuery] });
   }
@@ -259,7 +301,12 @@ app.post("/search", async (req, res) => {
     globalMetadata.length > 0
       ? "APIs:\n" +
         globalMetadata
-          .map((m) => `• ${m.title || m.fileName} v${m.version || "-"} servers: ${m.servers.join(", ") || "-"}`)
+          .map(
+            (m) =>
+              `• ${m.title || m.fileName} v${m.version || "-"} servers: ${
+                m.servers.join(", ") || "-"
+              }`
+          )
           .join("\n")
       : "";
   const context = buildContext({ results, includeMeta: metaSummary });
@@ -276,17 +323,23 @@ app.post("/search", async (req, res) => {
     return res.json({ matches: matched });
   }
 
-  // Non-question + no matches → attempt short contextual answer, else don't know
   const fallbackContext = metaSummary || "No API metadata available.";
-  const aiAnswer = await answerWithLocalAI({ question: query, context: fallbackContext });
-  return res.json({ answer: aiAnswer || "No matching API endpoint or metadata found." });
+  const aiAnswer = await answerWithLocalAI({
+    question: query,
+    context: fallbackContext,
+  });
+  return res.json({
+    answer: aiAnswer || "No matching API endpoint or metadata found.",
+  });
 });
 
-// Convenience: direct AI ask endpoint
+// Direct AI ask endpoint
 app.post("/ask", async (req, res) => {
   const { question } = req.body;
   if (!question || typeof question !== "string") {
-    return res.status(400).json({ error: "Field 'question' is required." });
+    return res
+      .status(400)
+      .json({ error: "Field 'question' is required." });
   }
 
   const results = fuse.search(question).slice(0, 10);
@@ -294,10 +347,19 @@ app.post("/ask", async (req, res) => {
     globalMetadata.length > 0
       ? "APIs:\n" +
         globalMetadata
-          .map((m) => `• ${m.title || m.fileName} v${m.version || "-"} servers: ${m.servers.join(", ") || "-"}`)
+          .map(
+            (m) =>
+              `• ${m.title || m.fileName} v${m.version || "-"} servers: ${
+                m.servers.join(", ") || "-"
+              }`
+          )
           .join("\n")
       : "";
-  const context = buildContext({ results, includeMeta: metaSummary, limitChars: 4500 });
+  const context = buildContext({
+    results,
+    includeMeta: metaSummary,
+    limitChars: 4500,
+  });
 
   const answer = await answerWithLocalAI({ question, context });
   return res.json({ answer });
@@ -305,7 +367,9 @@ app.post("/ask", async (req, res) => {
 
 // Health Check
 app.get("/", (req, res) => {
-  res.send("Multi-Swagger API Documentation Bot (local transformers.js) is up and running!");
+  res.send(
+    "Multi-Swagger API Documentation Bot (local transformers.js) is up and running!"
+  );
 });
 
 app.listen(PORT, () => {
