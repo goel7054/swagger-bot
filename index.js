@@ -35,6 +35,7 @@ async function getPipeline(task, model) {
   }
   const key = `${task}::${model}`;
   if (!PIPE_CACHE[key]) {
+    // cache the promise so concurrent calls share the same load
     PIPE_CACHE[key] = _pipeline.pipeline(task, model);
     console.log(`[AI] Loading ${task} → ${model} (first run will download weights)`);
   }
@@ -42,19 +43,20 @@ async function getPipeline(task, model) {
 }
 
 async function answerWithLocalAI({ question, context }) {
+  // Always pass a string to transformers
+  const safeContext = typeof context === "string" ? context : String(context ?? "");
+
   // 1) Try extractive QA
   try {
     const qa = await getPipeline("question-answering", LOCAL_QA_MODEL);
-    const out = await qa({ question, context });
-    // out = { answer, score, start, end }
+    const out = await qa({ question, context: safeContext }); // out = { answer, score, start, end }
     if (out?.answer && out.answer.trim()) {
-      // accept if reasonably confident or answer length is meaningful
       if ((out.score ?? 0) >= 0.25 || out.answer.trim().length >= 12) {
         return `${out.answer}`;
       }
     }
   } catch (e) {
-    console.error("[AI] QA error:", e.message);
+    console.error("[AI] QA error:", e?.message || e);
   }
 
   // 2) Fall back to text2text (generate from context)
@@ -64,7 +66,7 @@ async function answerWithLocalAI({ question, context }) {
 `Answer the user's question using ONLY the context below. If the answer isn't in the context, say "I don't know."
 
 Context:
-${context}
+${safeContext}
 
 Question: ${question}
 
@@ -76,7 +78,7 @@ Answer:`;
     }
     return "I don't know.";
   } catch (e) {
-    console.error("[AI] T2T error:", e.message);
+    console.error("[AI] T2T error:", e?.message || e);
     return "Local AI is warming up or unavailable. Please try again.";
   }
 }
@@ -121,7 +123,7 @@ const apiEntries = [];
 const globalMetadata = [];
 
 for (const fileName of swaggerFiles) {
-  const filePath = path.join(swaggerDir, fileName);
+  const filePath = path.join(__dirname, fileName);
   const fileContent = fs.readFileSync(filePath, "utf8");
   const doc = YAML.parse(fileContent);
 
@@ -275,8 +277,7 @@ app.post("/search", async (req, res) => {
   }
 
   // Non-question + no matches → attempt short contextual answer, else don't know
-  const fallbackContext =
-    metaSummary || "No API metadata available.";
+  const fallbackContext = metaSummary || "No API metadata available.";
   const aiAnswer = await answerWithLocalAI({ question: query, context: fallbackContext });
   return res.json({ answer: aiAnswer || "No matching API endpoint or metadata found." });
 });
@@ -298,8 +299,8 @@ app.post("/ask", async (req, res) => {
       : "";
   const context = buildContext({ results, includeMeta: metaSummary, limitChars: 4500 });
 
-  const aiAnswer = await answerWithLocalAI({ question, context });
-  return res.json({ answer: aiAnswer });
+  const answer = await answerWithLocalAI({ question, context });
+  return res.json({ answer });
 });
 
 // Health Check
